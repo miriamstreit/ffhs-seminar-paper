@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Lint') {
+            agent {
+                docker {
+                    image 'node:20.12.0-slim'
+                }
+            }
+            steps {
+                git branch: 'main', url: 'https://miriam.streit:<token>@git.ffhs.ch/miriam.streit/fs24-sema.git'
+                stash includes: 'projects/vuejs/*', name: 'source-code' 
+                
+                dir('projects/vuejs') {
+                    sh 'npm install'
+                    sh 'npm run lint'
+                }
+            }
+        }
+        stage('Test') {
+            agent {
+                docker {
+                    image 'node:20.12.0-slim'
+                }
+            }
+            steps {
+                unstash 'source-code'
+                
+                dir('projects/vuejs') {
+                    sh 'npm install'
+                    sh 'npm run test:unit'
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                unstash 'source-code' 
+                
+                dir('projects/vuejs') {
+                    script {
+                        docker.build("sema-vuejs:${env.BUILD_ID}")
+                    }
+                }
+            }
+        }
+    }
+}

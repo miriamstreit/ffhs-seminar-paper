@@ -1,0 +1,65 @@
+---
+resources:
+  - name: source-code
+    type: git
+    source:
+      uri: https://miriam.streit:<token>@git.ffhs.ch/miriam.streit/fs24-sema.git
+      branch: main
+      git_config:
+        - name: safe.directory
+          value: "*"
+  - name: python-image
+    type: registry-image
+    source:
+      repository: python
+      tag: 3.11.8-slim
+jobs:
+  - name: job
+    plan:
+      - get: source-code
+      - get: python-image
+      - task: lint-task
+        image: python-image
+        config:
+          platform: linux
+          inputs:
+            - name: source-code
+          run:
+            path: /bin/sh
+            args:
+              - -c
+              - |
+                cd source-code/projects/flask
+                pip install -r requirements.txt
+                pylint app
+      - task: run-tests
+        image: python-image
+        config:
+            platform: linux
+            inputs:
+            - name: source-code
+            run:
+              path: /bin/sh
+              args:
+                - -c
+                - |
+                  cd source-code/projects/flask
+                  pip install -r requirements.txt
+                  python -m pytest
+      - task: build-task
+        privileged: true
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: concourse/oci-build-task
+          inputs:
+          - name: source-code
+          outputs:
+          - name: image
+          params:
+            CONTEXT: source-code/projects/flask
+            UNPACK_ROOTFS: false
+          run:
+            path: build

@@ -1,0 +1,68 @@
+---
+resources:
+  - name: source-code
+    type: git
+    source:
+      uri: https://miriam.streit:<token>@git.ffhs.ch/miriam.streit/fs24-sema.git
+      branch: main
+      git_config:
+        - name: safe.directory
+          value: "*"
+  - name: node-image
+    type: registry-image
+    source:
+      repository: node
+      tag: 20.12.0-slim
+
+jobs:
+  - name: job
+    plan:
+      - get: source-code
+      - get: node-image
+      - task: lint-task
+        image: node-image
+        config:
+          platform: linux
+          inputs:
+            - name: source-code
+          run:
+            path: /bin/sh
+            args:
+              - -c
+              - |
+                cd source-code/projects/vuejs
+                npm install
+                npm run lint
+
+      - task: test-task
+        image: node-image
+        config:
+          inputs:
+          - name: source-code
+          platform: linux
+          run:
+            path: /bin/sh
+            args:
+            - -c
+            - |
+              cd source-code/projects/vuejs
+              npm install
+              npm run test:unit
+
+      - task: build-task
+        privileged: true
+        config:
+          platform: linux
+          image_resource:
+            type: registry-image
+            source:
+              repository: concourse/oci-build-task
+          inputs:
+          - name: source-code
+          outputs:
+          - name: image
+          params:
+            CONTEXT: source-code/projects/vuejs
+            UNPACK_ROOTFS: true
+          run:
+            path: build

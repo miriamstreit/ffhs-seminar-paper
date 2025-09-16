@@ -1,0 +1,36 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Lint') {
+            steps {
+                git branch: 'main', url: 'https://miriam.streit:<token>@git.ffhs.ch/miriam.streit/fs24-sema.git'
+                stash includes: 'projects/spring-boot/*', name: 'source-code' 
+                
+                dir('projects/spring-boot') {
+                  sh "./mvnw checkstyle:check"
+                }
+            }
+        }
+        stage('Test') {
+            steps {
+                unstash 'source-code'
+                
+                dir('projects/spring-boot') {
+                  sh "./mvnw test"
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                unstash 'source-code'
+                
+                dir('projects/spring-boot') {
+                    script {
+                        docker.build("sema-spring-boot:${env.BUILD_ID}")
+                    }
+                }
+            }
+        }
+    }
+}

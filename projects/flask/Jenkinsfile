@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Lint') {
+            agent {
+                docker {
+                    image 'python:3.11.8-slim'
+                }
+            }
+            steps {
+                git branch: 'main', url: 'https://miriam.streit:<token>@git.ffhs.ch/miriam.streit/fs24-sema.git'
+                stash includes: 'projects/flask/*', name: 'source-code' 
+                
+                dir('projects/flask') {
+                    sh 'pip install -r requirements.txt'
+                    sh 'pylint app'
+                }
+            }
+        }
+        stage('Test') {
+            agent {
+                docker {
+                    image 'python:3.11.8-slim'
+                }
+            }
+            steps {
+                unstash 'source-code'
+                
+                dir('projects/flask') {
+                    sh 'pip install -r requirements.txt'
+                    sh 'python -m pytest'
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                unstash 'source-code'
+
+                dir('projects/flask') {
+                    script {
+                        docker.build("sema-flask:${env.BUILD_ID}")
+                    }
+                }
+            }
+        }
+    }
+}
